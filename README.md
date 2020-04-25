@@ -42,46 +42,6 @@ Similar to processes, threads exist in different states, which are illustrated i
 - **Runnable** : In this state, a thread might actually be running or it might be ready to run at any instant of time. It is the responsibility of the thread scheduler to assign CPU time to the thread.
 - **Blocked** : A thread might be in this state, when it is waiting for I/O operations to complete. When blocked, a thread cannot continue its execution any further until it is moved to the runnable state again. It will not consume any CPU time in this state. The thread scheduler is responsible for reactivating the thread.
 
-## Lambda Function
-
-- **Syntax**
-```cpp
-#include <iostream>
-
-int main(int argc, char ** argv)
-{
-    int id = 5;
-    void f1 = [&id] () mutable -> void { std::cout << "I have captured:" << id << std::endl};
-    f1();
-    return 0;
-}
-```
-Symbol | Explanation
---- | ---
-[] | Capturing variable
-[id] | use the variable name to capture that variable by value
-[=] | use = to capture all variables by value
-[&id] | use & with variable name for capturing that variable by reference
-[&] | use only & to capture all variables by reference
-[&, id] | Capture all by reference, except id by value
-[&id, id2] | capture id by reference and id2 by value
-
-Symbol | Explanation
---- | ---
-() | Accepting variable, just like a function
-
-Symbol | Explanation
---- | ---
--> void | this is option, only needed if you want to specify the return type
-mutable -> | lambda function generally do not change the value taken from [], however, you make set it as mutable so that the value capture by [] can be changed
-
-## Passing Arguement to thread
-
-- Function Collaborator (class)
-- Lamda
-- Variadic Template
-- Member Function
-
 ## Initializing with class
 ```cpp
 #include <iostream>
@@ -118,6 +78,155 @@ int main(int argc, char ** argv)
     t3.join();
 
   return 0;
+}
+```
+
+## Promises and Futures
+
+Sending ends of thread are called `Promises` and the receiving end of the thread are called `Future`.
+
+**From parent thread to worker threads**
+
+- Function Collaborator (class)
+- Variadic Template
+- Member Function
+- Using lambda
+
+**Lambda Function**
+
+Syntax of lambda function.
+
+```cpp
+#include <iostream>
+
+int main(int argc, char ** argv)
+{
+    int id = 5;
+    void f1 = [&id] () mutable -> void { std::cout << "I have captured:" << id << std::endl};
+    f1();
+    return 0;
+}
+```
+
+Symbol | Explanation
+--- | ---
+[] | Capturing variable
+[id] | use the variable name to capture that variable by value
+[=] | use = to capture all variables by value
+[&id] | use & with variable name for capturing that variable by reference
+[&] | use only & to capture all variables by reference
+[&, id] | Capture all by reference, except id by value
+[&id, id2] | capture id by reference and id2 by value
+
+Symbol | Explanation
+--- | ---
+() | Accepting variable, just like a function
+
+Symbol | Explanation
+--- | ---
+-> void | this is option, only needed if you want to specify the return type
+mutable -> | lambda function generally do not change the value taken from [], however, you make set it as mutable so that the value capture by [] can be changed
+
+**From worker thread to parent thread**
+
+- Using promises and futures
+
+**Example 1**
+
+Usage of promises and futures.
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <future>
+
+void modifyMessage(std::promise<std::string> && prms, std::string message)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(4000)); // simulate work
+    std::string modifiedMessage = message + " has been modified"; 
+    prms.set_value(modifiedMessage);
+}
+
+int main(int argc, char ** argv)
+{
+    // define message
+    std::string messageToThread = "My Message";
+
+    // create promise and future
+    std::promise<std::string> prms;
+    std::future<std::string> ftr = prms.get_future();
+
+    // start thread and pass promise as argument
+    std::thread t(modifyMessage, std::move(prms), messageToThread);
+
+    // print original message to console
+    std::cout << "Original message from main(): " << messageToThread << std::endl;
+
+    // retrieve modified message via future and print to console
+    std::string messageFromThread = ftr.get();
+    std::cout << "Modified message from thread(): " << messageFromThread << std::endl;
+
+    // thread barrier
+    if(t.joinable())
+      t.join();
+
+    return 0;
+}
+```
+
+**Example 2**
+
+Usage of promises and future with exception and error catching.
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <future>
+#include <cmath>
+#include <memory>
+
+void divideByNumber(std::promise<double> &&prms, double num, double denom)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // simulate work
+    try
+    {
+        if (denom == 0)
+            throw std::runtime_error("Exception from thread: Division by zero!");
+        else
+            prms.set_value(num / denom);
+    }
+    catch (...)
+    {
+        prms.set_exception(std::current_exception());
+    }
+}
+
+int main(int argc, char ** argv)
+{
+    // create promise and future
+    std::promise<double> prms;
+    std::future<double> ftr = prms.get_future();
+
+    // start thread and pass promise as argument
+    double num = 42.0, denom = 0.0;
+    std::thread t(divideByNumber, std::move(prms), num, denom);
+
+    // retrieve result within try-catch-block
+    try
+    {
+        double result = ftr.get();
+        std::cout << "Result = " << result << std::endl;
+    }
+    catch (std::runtime_error e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+
+    // thread barrier
+    if(t.joinable())
+      t.join();
+
+    return 0;
 }
 ```
 
