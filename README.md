@@ -133,7 +133,7 @@ mutable -> | lambda function generally do not change the value taken from [], ho
 
 **Example 1**
 
-Usage of promises and futures.
+Usage of promises and futures. However, the drawback of future and promises are they are of one time use only.
 
 ```cpp
 #include <iostream>
@@ -229,6 +229,150 @@ int main(int argc, char ** argv)
     return 0;
 }
 ```
+
+- Using task (async task are designed to replace simple threading application, for application where mutex and locks are use, please use std thread to do so.)
+
+**Example 1**
+
+Creating a std::async task. You can see that now the function pass into the thread can have a return type which is very similar to a normal function that we would define.
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <future>
+#include <cmath>
+#include <memory>
+
+
+double divideByNumber(double num, double denom)
+{
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  if(denom == 0)
+    throw std::runtime_error("Exception from thread: Division by zero");
+  return num / denom;
+}
+
+int main(int argc, char ** argv)
+{
+  double num = 88.0, denom = 2.0;
+  std::future<double> ftr = std::async(divideByNumber, num, denom);
+  try
+  {
+    double result = ftr.get();
+    std::cout << "Result = " << restul << std::endl;
+  }
+  catch(std::runtime_error e)
+  {
+    std::cout << e.what() << std::endl;
+  }
+  return 0;
+}
+```
+
+**Example 2**
+
+Create a task by choosing whether to use `std::launch::async` or `std::launch::deferred`.
+
+`std::launch::async` will create a thread for that function.
+
+`std::launch::deferred` will only be creating a thread when it is called to do so.
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <future>
+#include <cmath>
+#include <memory>
+
+double divideByNumber(double num, double denom)
+{
+    std::cout << "Worker thread id = " << std::this_thread::get_id() << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    if(denom == 0)
+    {
+        throw std::runtime_error("Exception from thread#: Division by zero!");
+    }
+    return num / denom;
+}
+
+int main(int argc, char ** argv)
+{
+    std::cout << "Main thread id = " << std::this_thread::get_id() << std::endl;
+    double num = 42.0, denom = 2.0;
+    // Choose whether you want to create with async or deferred
+    std::future<double> ftr = std::async(std::launch::deferred, divideByNumber, num, denom);
+
+    try
+    {
+        double result = ftr.get();
+        std::cout << "Result = " << result << std::endl;
+    }
+    catch(std::runtime_error e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+    return 0;
+}
+```
+
+**Example 3**
+
+Let the computer decide whether to use `std::launch::async` or `std::launch::deferred`.
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <future>
+#include <cmath>
+#include <vector>
+#include <chrono>
+
+void workerFunction(int n)
+{
+    // print system id of worker thread
+    std::cout << "Worker thread id = " << std::this_thread::get_id() << std::endl;
+
+    // perform work
+    for (int i = 0; i < n; ++i)
+    {
+        sqrt(12345.6789);
+    }
+}
+
+int main()
+{
+    // print system id of worker thread
+    std::cout << "Main thread id = " << std::this_thread::get_id() << std::endl;
+
+    // start time measurement
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    
+    // launch various tasks
+    std::vector<std::future<void>> futures;
+    int nLoops = 10, nThreads = 5;
+    for (int i = 0; i < nThreads; ++i)
+    {
+        futures.emplace_back(std::async(std::launch::async | std::launch::deferred, workerFunction, nLoops));
+    }
+
+    // wait for tasks to complete
+    for (const std::future<void> &ftr : futures)
+        ftr.wait();
+
+    // stop time measurement and print execution time
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
+    std::cout << "Execution finished after " << duration <<" microseconds" << std::endl;
+    
+    return 0;
+}
+```
+
+## Data Racing
+
+Data racing happens when one thread is writing to a resource while another thread is reading from the resource at the same time.
+
 
 ## CMakeLists.txt
 
