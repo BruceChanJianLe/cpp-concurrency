@@ -373,6 +373,234 @@ int main()
 
 Data racing happens when one thread is writing to a resource while another thread is reading from the resource at the same time.
 
+**To avoid data racing**
+- Use mutex to syncrhonize data access
+- Never leak a handle of data to outside world (Do not allow user function to take mutex lock resources as an arguement.)
+- Design interface appropriately (Sometime by combining a set of actions instead of separating them.)
+
+**Mutex - Mutual exclusion**
+
+- std::mutex _mu
+- std::lock_guard<std::mutex> guard(_mu)
+- std::unique_lock<std::mutex> lock(_mu)
+
+**Example 1**
+```cpp
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <future>
+#include <algorithm>
+#include <mutex>
+
+double result;
+std::mutex mu;
+
+void printResult(int denom)
+{
+    std::cout << "for denom = " << denom << ", the result is " << result << std::endl;
+}
+
+void divideByNumber(double num, double denom)
+{
+    try
+    {
+        if(denom != 0)
+        {
+            // Lock starts here
+            mu.lock();
+            result = num / denom;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            printResult(denom);
+            // Remember to unlock
+            mu.unlock();
+        }
+        else
+        {
+            throw std::invalid_argument("Exception from thread: Division by zero!");
+        }
+    }
+    catch(const std::invalid_argument & e)
+    {
+        std::cerr << e.what() << std::endl;
+        return;
+    }
+}
+
+int main(int argc, char ** argv)
+{
+    std::vector<std::future<void>> futures;
+    for(double i = -5; i <= +5; ++i)
+    {
+        futures.emplace_back(std::async(std::launch::async, divideByNumber, 50.0, i));
+    }
+
+    std::for_each(futures.begin(), futures.end(), [](std::future<void> & ftr){
+        ftr.wait();
+    });
+
+    return 0;
+}
+```
+
+**Example 2**
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <future>
+#include <algorithm>
+#include <mutex>
+
+double result;
+std::mutex mu;
+
+void printResult(int denom)
+{
+    std::cout << "for denom = " << denom << ", the result is " << result << std::endl;
+}
+
+void divideByNumber(double num, double denom)
+{
+    // Use lock guard so when it goes out of scope it will unlock automatically
+    std::lock_guard<std::mutex> guard(mu);
+    try
+    {
+        if(denom != 0)
+        {
+            result = num / denom;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            printResult(denom);
+        }
+        else
+        {
+            throw std::invalid_argument("Exception from thread: Division by zero!");
+        }
+    }
+    catch(const std::invalid_argument & e)
+    {
+        std::cerr << e.what() << std::endl;
+        return;
+    }
+}
+
+int main(int argc, char ** argv)
+{
+    std::vector<std::future<void>> futures;
+    for(double i = -5; i <= +5; ++i)
+    {
+        futures.emplace_back(std::async(std::launch::async, divideByNumber, 50.0, i));
+    }
+
+    std::for_each(futures.begin(), futures.end(), [](std::future<void> & ftr){
+        ftr.wait();
+    });
+
+    return 0;
+}
+```
+
+**Example 3**
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <future>
+#include <mutex>
+#include <algorithm>
+
+std::mutex mtx;
+double result;
+
+void printResult(int denom)
+{
+    std::cout << "for denom = " << denom << ", the result is " << result << std::endl;
+}
+
+void divideByNumber(double num, double denom)
+{
+    // Create a unique lock
+    std::unique_lock<std::mutex> lck(mtx);
+    try
+    {
+        // divide num by denom but throw an exception if division by zero is attempted
+        if (denom != 0) 
+        {   
+            result = num / denom;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+            printResult(denom);
+            // Unlock to do something unrelated to the resource
+            lck.unlock();
+
+            // do something outside of the lock
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+
+            // Lock resource again to do something related to resource
+            lck.lock(); 
+            // do someting else under the lock
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+        }
+        else
+        {
+            throw std::invalid_argument("Exception from thread: Division by zero!");
+        }
+    }
+    catch (const std::invalid_argument &e)
+    {
+        // notify the user about the exception and return
+        std::cout << e.what() << std::endl;
+        return; 
+    }
+}
+
+int main()
+{
+    // create a number of threads which execute the function "divideByNumber" with varying parameters
+    std::vector<std::future<void>> futures;
+    for (double i = -5; i <= +5; ++i)
+    {
+        futures.emplace_back(std::async(std::launch::async, divideByNumber, 50.0, i));
+    }
+
+    // wait for the results
+    std::for_each(futures.begin(), futures.end(), [](std::future<void> &ftr) {
+        ftr.wait();
+    });
+
+    return 0;
+}
+```
+
+## Methods to instatiate a shared pointer
+
+```cpp
+#include <memory>
+#include <iostream>
+
+class Vehicle
+{
+public:
+    Vehicle(int id) : _id(id) {}
+    void printID() {std::cout << "My id is " << _id << std::endl;}
+private:
+    int _id;
+};
+
+int main(int argc, char ** argv)
+{
+    // 1st method
+    std::shared_ptr<Vehicle> v_ptr (new Vehicle(0));
+    // 2nd method
+    std::shared_ptr<Vehicle> v_ptr2 = std::make_shared<Vehicle>(1);
+
+    v_ptr->printID();
+    v_ptr2->printID();
+
+    return 0;
+}
+```
 
 ## CMakeLists.txt
 
