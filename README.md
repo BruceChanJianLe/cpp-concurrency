@@ -653,3 +653,4 @@ target_link_libraries(test ${CMAKE_THREAD_LIBS_INIT})
 
 # Reference
 - 5 ways to create a thread [link](https://www.youtube.com/watch?v=hCvc9y39RDw&list=PLk6CEY9XxSIAeK-EAh3hB4fgNvYkYmghp&index=2)
+- Videos on data racing by BoQian [link](https://www.youtube.com/watch?v=3ZxZPeXPaM4)
