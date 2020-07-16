@@ -387,6 +387,7 @@ Data racing happens when one thread is writing to a resource while another threa
 - std::recursive_mutex _mu
 - _mu.try_lock()
 - std::shared_mutex (read and write lock)
+- std::scoped_lock
 
 
 **Example 1**
@@ -729,6 +730,47 @@ int main(int argc, char ** argv)
     return 0;
 }
 ```
+
+**Example 7 scoped_lock**
+
+When lock order is not clear.
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <mutex>
+
+
+int sushi_count = 5000;
+
+void philosopher(std::mutex & first_chopstick, std::mutex & second_chopstick)
+{
+    while(sushi_count > 0)
+    {
+        std::scoped_lock lock(first_chopstick, second_chopstick)
+        if(sushi_count)
+        {
+            sushi_count--;
+        }
+    }
+}
+
+
+int main(int argc, char ** argv)
+{
+    std::mutex chopstick_a, chopstick_b;
+    std::thread barron(philosopher, std::ref(chopstick_a), std::ref(chopstick_b));
+    std::thread olivia(philosopher, std::ref(chopstick_b), std::ref(chopstick_a));
+
+    barron.join();
+    olivia.join();
+
+    std::cout << "The philosophers are done eating." << std::endl;
+
+    return 0;
+}
+```
+
 ## Methods to instatiate a shared pointer
 
 ```cpp
