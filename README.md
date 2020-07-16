@@ -377,12 +377,17 @@ Data racing happens when one thread is writing to a resource while another threa
 - Use mutex to syncrhonize data access
 - Never leak a handle of data to outside world (Do not allow user function to take mutex lock resources as an arguement.)
 - Design interface appropriately (Sometime by combining a set of actions instead of separating them.)
+- If data that we are accessing are simple, prefer atomic instead of using mutex.
 
 **Mutex - Mutual exclusion**
 
 - std::mutex _mu
 - std::lock_guard<std::mutex> guard(_mu)
 - std::unique_lock<std::mutex> lock(_mu)
+- std::recursive_mutex _mu
+- _mu.try_lock()
+- std::shared_mutex (read and write lock)
+
 
 **Example 1**
 ```cpp
@@ -573,6 +578,157 @@ int main()
 }
 ```
 
+**Example 4 atomic**
+
+```cpp
+#include <thread>
+#include <atomic>
+#include <iostream>
+
+
+std::atomic<unsigned int> garlic_cout (0);
+
+void shopper()
+{
+    for(int i = 0; i < 1000000; i++)
+    {
+        garlic_count++;
+    }
+}
+
+int main(int argc, char ** argv)
+{
+    std::thread barron(shopper);
+    std::thread olivia(shopper);
+
+    barron.join();
+    olivia.join();
+
+    std::cout << "We should buy " << garlic_count.load() << "garlic." << std::endl;
+
+    return 0;
+}
+
+```
+
+**Example 5 recursive mutex**
+
+```cpp
+#include <thread>
+#include <mutex>
+
+unsigned int garlic_count = 0;
+unsigned int potato_count = 0;
+
+std::recursive_mutex pencil;
+
+void add_garlic()
+{
+    pencil.lock();
+    garlic_count++;
+    pencil.unlock();
+}
+
+void add_potato()
+{
+    pencil.lock();
+    potato_count++;
+    add_garlic();
+    pencil.unlock();
+}
+
+void shopper()
+{
+    for(int i = 0; i < 10000; i++)
+    {
+        add_garlic();
+        add_potato();
+    }
+}
+
+int main(int argc, char ** argv)
+{
+    std::thread barron(shopper);
+    std::thread olivia(shopper);
+
+    barron.join();
+    olivia.join();
+
+    std::cout << "We should buy " << garlic_count << "garlic." << std::endl;
+    std::cout << "We should buy " << potato_count << "potatoes." << std::endl;
+
+    return 0;
+}
+```
+
+**Example 6 read write lock**
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <shared_mutex>
+#include <chrono>
+
+
+char WEEKDAYS[7][10] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+int today = 0;
+std::mutex marker;
+
+
+void calender_reader(const int id)
+{
+    for(int i - 0; i < 7; i++)
+    {
+        marker.lock_shared();
+        std::cout << "Reader-" << id << " sees today is " << WEEKDAYS[today] << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        marker.unlock_shared();
+    }
+}
+
+
+void calender_writer(const int id)
+{
+    for(int i = 0; i < 7; i++)
+    {
+        marker.lock();
+        today = (today + 1) % 7;
+        std::cout << "Writer-" << id << " updated date to " << WEEKDAYS[today] << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        marker.unlock();
+    }
+}
+
+
+int main(int argc, char ** argv)
+{
+    // Create ten reader threads but only two writer
+    std::array<std::thread, 10> readers;
+    for(unsigned int 1 - 0; i < readers.size; i++)
+    {
+        readers[i] = std::thread(calender_reader, i);
+    }
+
+    std::array<std::thread, 2> writers;
+    for(unsigned int i = 0; i < writers.size(); i++)
+    {
+        writers[i] = std::thread(calender_writer, i);
+    }
+
+    // Wait for readers and writers to finish
+    for(unsigned int i = 0; i < readers.size(); i++)
+    {
+        readers[i].join();
+    }
+    for(unsigned int i = 0; i < writers.size(); i++)
+    {
+        writers[i].join();
+    }
+
+    return 0;
+}
+```
 ## Methods to instatiate a shared pointer
 
 ```cpp
